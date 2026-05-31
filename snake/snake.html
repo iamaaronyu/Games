@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>🐍 贪吃蛇</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -12,45 +12,74 @@
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    min-height: 100dvh;
     background: #1a1a2e;
     font-family: 'Segoe UI', system-ui, sans-serif;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    overflow-y: auto;
+    padding: 12px;
   }
 
   .game-wrapper {
     text-align: center;
+    max-width: 600px;
+    width: 100%;
   }
 
   h1 {
     color: #e94560;
-    font-size: 2.5rem;
-    margin-bottom: 16px;
+    font-size: clamp(1.6rem, 5vw, 2.5rem);
+    margin-bottom: 12px;
     text-shadow: 0 0 20px rgba(233, 69, 96, 0.4);
     letter-spacing: 4px;
   }
 
+  .difficulty-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 2px 10px;
+    border-radius: 10px;
+    margin-left: 6px;
+    vertical-align: middle;
+    font-weight: normal;
+    letter-spacing: 0;
+  }
+  .diff-easy   { background: #27ae60; color: #fff; }
+  .diff-normal { background: #f39c12; color: #111; }
+  .diff-hard   { background: #e74c3c; color: #fff; }
+
   .score-panel {
     display: flex;
     justify-content: center;
-    gap: 40px;
-    margin-bottom: 16px;
+    gap: 24px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
   }
 
   .score-item {
     color: #eee;
-    font-size: 1.2rem;
+    font-size: 1rem;
   }
 
-  .score-item span {
-    color: #0f3460;
+  .score-item .value {
+    color: #e94560;
     font-weight: bold;
-    font-size: 1.5rem;
+    font-size: 1.4rem;
   }
 
   .score-item .label {
     color: #aaa;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     display: block;
+  }
+
+  .canvas-container {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
   }
 
   canvas {
@@ -60,12 +89,15 @@
     box-shadow: 0 0 40px rgba(233, 69, 96, 0.15), inset 0 0 60px rgba(0,0,0,0.4);
     display: block;
     margin: 0 auto;
+    max-width: 100%;
+    height: auto;
   }
 
+  /* ── Desktop keyboard hints ──────────────────────────────── */
   .controls {
-    margin-top: 20px;
+    margin-top: 12px;
     color: #888;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     line-height: 1.8;
   }
 
@@ -77,13 +109,13 @@
     border-radius: 4px;
     border: 1px solid #0f3460;
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     min-width: 24px;
     text-align: center;
   }
 
   .btn {
-    margin-top: 16px;
+    margin-top: 12px;
     padding: 10px 32px;
     font-size: 1rem;
     color: #eee;
@@ -93,6 +125,7 @@
     cursor: pointer;
     letter-spacing: 2px;
     transition: all 0.2s;
+    touch-action: manipulation;
   }
 
   .btn:hover {
@@ -101,57 +134,159 @@
     box-shadow: 0 0 24px rgba(233, 69, 96, 0.4);
   }
 
-  .game-over-overlay {
+  /* ── Mobile D-pad ────────────────────────────────────────── */
+  .dpad {
+    display: none;  /* hidden on desktop */
+    margin: 16px auto 0;
+    width: 180px;
+    height: 180px;
+    position: relative;
+  }
+
+  .dpad button {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    border: 2px solid #0f3460;
+    border-radius: 12px;
+    background: #16213e;
+    color: #e94560;
+    font-size: 1.6rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.1s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .dpad button:active {
+    background: #e94560;
+    color: #fff;
+  }
+
+  .dpad .btn-up    { top: 0;   left: 50%; transform: translateX(-50%); }
+  .dpad .btn-down  { bottom: 0; left: 50%; transform: translateX(-50%); }
+  .dpad .btn-left  { top: 50%;  left: 0;   transform: translateY(-50%); }
+  .dpad .btn-right { top: 50%;  right: 0;  transform: translateY(-50%); }
+  .dpad .btn-pause { top: 50%;  left: 50%; transform: translate(-50%, -50%);
+                     font-size: 0.7rem; width: 40px; height: 40px; border-radius: 50%; }
+
+  /* show D-pad only on touch devices */
+  @media (hover: none) and (pointer: coarse) {
+    .dpad    { display: block; }
+    .controls { display: none; }
+    #restartBtn { display: none; }
+  }
+
+  /* ── Overlays ────────────────────────────────────────────── */
+  .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
+    background: rgba(0,0,0,0.7);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 10;
   }
 
-  .game-over-box {
+  .overlay-box {
     background: #16213e;
-    padding: 32px 48px;
+    padding: 28px 36px;
     border-radius: 12px;
     text-align: center;
     border: 1px solid #0f3460;
     box-shadow: 0 0 60px rgba(0,0,0,0.5);
+    max-width: 360px;
+    width: 90%;
   }
 
-  .game-over-box h2 {
+  .overlay-box h2 {
     color: #e94560;
-    font-size: 2rem;
-    margin-bottom: 12px;
+    font-size: 1.8rem;
+    margin-bottom: 10px;
   }
 
-  .game-over-box p {
+  .overlay-box p {
     color: #ccc;
-    font-size: 1.1rem;
-    margin-bottom: 20px;
+    font-size: 1rem;
+    margin-bottom: 16px;
   }
+
+  /* Difficulty buttons */
+  .diff-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .diff-btn {
+    padding: 12px 20px;
+    font-size: 1rem;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #eee;
+    background: transparent;
+    transition: all 0.2s;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    touch-action: manipulation;
+  }
+
+  .diff-btn:hover, .diff-btn:active {
+    border-color: #e94560;
+    background: rgba(233,69,96,0.1);
+  }
+
+  .diff-btn .diff-name  { font-weight: bold; font-size: 1.1rem; }
+  .diff-btn .diff-desc  { font-size: 0.75rem; color: #888; display: block; }
+  .diff-btn .diff-speed { font-size: 0.8rem; color: #f39c12; }
 
   .hidden { display: none !important; }
+
+  /* Score pop animation */
+  @keyframes pop {
+    0%   { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+  }
+  .score-pop {
+    position: absolute;
+    pointer-events: none;
+    font-weight: bold;
+    font-size: 1.2rem;
+    z-index: 5;
+    animation: pop 0.6s ease-out forwards;
+  }
 </style>
 </head>
 <body>
 
 <div class="game-wrapper">
-  <h1>🐍 贪吃蛇</h1>
+  <h1>🐍 贪吃蛇 <span class="difficulty-badge diff-normal" id="diffBadge">普通</span></h1>
 
   <div class="score-panel">
     <div class="score-item">
       <span class="label">分数</span>
-      <span id="score">0</span>
+      <span class="value" id="score">0</span>
     </div>
     <div class="score-item">
       <span class="label">最高分</span>
-      <span id="highScore">0</span>
+      <span class="value" id="highScore">0</span>
+    </div>
+    <div class="score-item" id="goldenCountBox" style="display:none">
+      <span class="label">🍎 金苹果</span>
+      <span class="value" id="goldenCount">0</span>
     </div>
   </div>
 
-  <canvas id="canvas"></canvas>
+  <div class="canvas-container">
+    <canvas id="canvas"></canvas>
+  </div>
 
   <button class="btn" id="restartBtn">重新开始</button>
 
@@ -159,55 +294,137 @@
     <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> 或 <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> 控制方向 &nbsp;|&nbsp;
     <kbd>Space</kbd> 暂停
   </div>
+
+  <!-- Mobile D-pad -->
+  <div class="dpad" id="dpad">
+    <button class="btn-up"    data-dir="up">▲</button>
+    <button class="btn-down"  data-dir="down">▼</button>
+    <button class="btn-left"  data-dir="left">◀</button>
+    <button class="btn-right" data-dir="right">▶</button>
+    <button class="btn-pause" id="dpadPause">⏯</button>
+  </div>
 </div>
 
-<div class="game-over-overlay hidden" id="gameOverOverlay">
-  <div class="game-over-box">
+<!-- Difficulty selection overlay -->
+<div class="overlay" id="diffOverlay">
+  <div class="overlay-box">
+    <h2>🐍 选择难度</h2>
+    <p>难度影响初始速度和加速节奏</p>
+    <div class="diff-btns">
+      <button class="diff-btn" data-diff="easy">
+        <span>
+          <span class="diff-name">🟢 简单</span>
+          <span class="diff-desc">从容不迫，适合休闲</span>
+        </span>
+        <span class="diff-speed">慢速</span>
+      </button>
+      <button class="diff-btn" data-diff="normal">
+        <span>
+          <span class="diff-name">🟡 普通</span>
+          <span class="diff-desc">适中节奏，经典体验</span>
+        </span>
+        <span class="diff-speed">中速</span>
+      </button>
+      <button class="diff-btn" data-diff="hard">
+        <span>
+          <span class="diff-name">🔴 困难</span>
+          <span class="diff-desc">极速挑战，考验反应</span>
+        </span>
+        <span class="diff-speed">快速</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Game Over overlay -->
+<div class="overlay hidden" id="gameOverOverlay">
+  <div class="overlay-box">
     <h2>💀 游戏结束</h2>
     <p>最终得分：<strong id="finalScore">0</strong></p>
+    <p style="font-size:0.85rem;color:#888;" id="finalGolden"></p>
     <button class="btn" id="playAgainBtn">再来一局</button>
   </div>
 </div>
 
 <script>
 // ── Constants ──────────────────────────────────────────────
-const BOARD_SIZE   = 20;
-const CELL_SIZE    = 28;
-const GAP          = 2;
-const BASE_SPEED   = 200;  // ms per tick at start (slower)
-const SPEED_STEP   = 5;    // ms faster per food eaten
-const MIN_SPEED    = 60;   // speed cap
-const CANVAS_W     = BOARD_SIZE * CELL_SIZE;
-const CANVAS_H     = BOARD_SIZE * CELL_SIZE;
+const BOARD_SIZE = 20;
+const CELL_SIZE  = 28;
+const GAP        = 2;
+const CANVAS_W   = BOARD_SIZE * CELL_SIZE;
+const CANVAS_H   = BOARD_SIZE * CELL_SIZE;
+
+// ── Difficulty presets ─────────────────────────────────────
+const DIFFICULTIES = {
+  easy:   { name: '简单', css: 'diff-easy',   base: 260, step: 3, min: 85,  goldenMin: 4, goldenMax: 9 },
+  normal: { name: '普通', css: 'diff-normal',  base: 200, step: 5, min: 60,  goldenMin: 3, goldenMax: 8 },
+  hard:   { name: '困难', css: 'diff-hard',    base: 150, step: 7, min: 45,  goldenMin: 2, goldenMax: 6 },
+};
+
+const GOLDEN_DURATION     = 5000;   // golden apple lifetime (ms)
+const GOLDEN_FLASH_START  = 3500;   // start flashing at this ms mark
+const GOLDEN_SCORE        = 3;      // points for golden apple
 
 // ── DOM refs ───────────────────────────────────────────────
-const canvas        = document.getElementById('canvas');
-const ctx           = canvas.getContext('2d');
-const scoreEl       = document.getElementById('score');
-const highScoreEl   = document.getElementById('highScore');
-const finalScoreEl  = document.getElementById('finalScore');
+const canvas          = document.getElementById('canvas');
+const ctx             = canvas.getContext('2d');
+const scoreEl         = document.getElementById('score');
+const highScoreEl     = document.getElementById('highScore');
+const finalScoreEl    = document.getElementById('finalScore');
+const finalGoldenEl   = document.getElementById('finalGolden');
 const gameOverOverlay = document.getElementById('gameOverOverlay');
-const restartBtn    = document.getElementById('restartBtn');
-const playAgainBtn  = document.getElementById('playAgainBtn');
+const diffOverlay     = document.getElementById('diffOverlay');
+const diffBadge       = document.getElementById('diffBadge');
+const goldenCountBox  = document.getElementById('goldenCountBox');
+const goldenCountEl   = document.getElementById('goldenCount');
+const restartBtn      = document.getElementById('restartBtn');
+const playAgainBtn    = document.getElementById('playAgainBtn');
+const dpad            = document.getElementById('dpad');
+const dpadPause       = document.getElementById('dpadPause');
+const canvasContainer = document.querySelector('.canvas-container');
 
 canvas.width  = CANVAS_W;
 canvas.height = CANVAS_H;
 
 // ── State ──────────────────────────────────────────────────
-let snake    = [];
-let food     = null;
-let dir      = { x: 1, y: 0 };
-let nextDir  = { x: 1, y: 0 };
-let score    = 0;
-let highScore = 0;
-let gameLoop = null;
-let running  = false;
-let paused   = false;
+let snake       = [];
+let food        = null;
+let goldenApple = null;
+let dir         = { x: 1, y: 0 };
+let nextDir     = { x: 1, y: 0 };
+let score       = 0;
+let goldenCount = 0;
+let highScore   = 0;
+let gameLoop    = null;
+let goldenTimer = null;
+let running     = false;
+let paused      = false;
 
-// Load high score from localStorage
-try       { highScore = parseInt(localStorage.getItem('snakeHighScore')) || 0; }
-catch (_) { /* localStorage unavailable */ }
-highScoreEl.textContent = highScore;
+// Difficulty state
+let difficulty  = 'normal';  // default
+let speedBase   = DIFFICULTIES.normal.base;
+let speedStep   = DIFFICULTIES.normal.step;
+let speedMin    = DIFFICULTIES.normal.min;
+
+// Golden apple spawn tracking
+let applesEaten       = 0;
+let goldenThreshold   = 5; // random 3-8, set when game starts
+
+// ── Persisted high scores per difficulty ───────────────────
+function loadHighScore() {
+  try {
+    const key = `snakeHS_${difficulty}`;
+    highScore = parseInt(localStorage.getItem(key)) || 0;
+  } catch (_) { highScore = 0; }
+  highScoreEl.textContent = highScore;
+}
+
+function saveHighScore() {
+  try {
+    const key = `snakeHS_${difficulty}`;
+    localStorage.setItem(key, highScore);
+  } catch (_) {}
+}
 
 // ── Helpers ────────────────────────────────────────────────
 function randomCell() {
@@ -218,20 +435,88 @@ function randomCell() {
 }
 
 function cellEq(a, b) {
-  return a.x === b.x && a.y === b.y;
+  return a && b && a.x === b.x && a.y === b.y;
 }
 
 function snakeCovers(cell) {
   return snake.some(s => cellEq(s, cell));
 }
 
+function occupiedCells() {
+  const cells = [...snake];
+  if (food) cells.push(food);
+  if (goldenApple) cells.push(goldenApple);
+  return cells;
+}
+
+function anyCovers(cell) {
+  return occupiedCells().some(c => cellEq(c, cell));
+}
+
 function spawnFood() {
   let pos;
-  do { pos = randomCell(); } while (snakeCovers(pos));
+  do { pos = randomCell(); } while (anyCovers(pos));
   food = pos;
 }
 
+// ── Golden Apple ───────────────────────────────────────────
+function spawnGoldenApple() {
+  let pos;
+  let tries = 0;
+  do {
+    pos = randomCell();
+    tries++;
+  } while (anyCovers(pos) && tries < 200);
+
+  if (tries >= 200) return; // board too full
+
+  goldenApple = { x: pos.x, y: pos.y, spawnTime: Date.now() };
+
+  // Auto-remove after GOLDEN_DURATION
+  clearTimeout(goldenTimer);
+  goldenTimer = setTimeout(() => {
+    goldenApple = null;
+  }, GOLDEN_DURATION);
+}
+
+function clearGoldenApple() {
+  clearTimeout(goldenTimer);
+  goldenApple = null;
+}
+
+function isGoldenFlashing() {
+  if (!goldenApple) return false;
+  const elapsed = Date.now() - goldenApple.spawnTime;
+  return elapsed >= GOLDEN_FLASH_START;
+}
+
+// ── Score pop effect ───────────────────────────────────────
+function showScorePop(cx, cy, text, color) {
+  const el = document.createElement('div');
+  el.className = 'score-pop';
+  el.textContent = text;
+  el.style.left = cx + 'px';
+  el.style.top  = cy + 'px';
+  el.style.color = color;
+  canvasContainer.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
 // ── Game logic ─────────────────────────────────────────────
+function applyDifficulty(diffKey) {
+  difficulty = diffKey;
+  const cfg = DIFFICULTIES[diffKey];
+  speedBase = cfg.base;
+  speedStep = cfg.step;
+  speedMin  = cfg.min;
+
+  // Update badge
+  diffBadge.textContent = cfg.name;
+  diffBadge.className = 'difficulty-badge ' + cfg.css;
+
+  loadHighScore();
+}
+
 function init() {
   const mid = Math.floor(BOARD_SIZE / 2);
   snake = [
@@ -239,12 +524,25 @@ function init() {
     { x: mid - 1, y: mid },
     { x: mid - 2, y: mid },
   ];
-  dir     = { x: 1, y: 0 };
-  nextDir = { x: 1, y: 0 };
-  score   = 0;
-  paused  = false;
+  dir       = { x: 1, y: 0 };
+  nextDir   = { x: 1, y: 0 };
+  score     = 0;
+  goldenCount = 0;
+  paused    = false;
+
+  clearGoldenApple();
+  goldenApple = null;
+
+  // Set random threshold for next golden apple
+  const cfg = DIFFICULTIES[difficulty];
+  goldenThreshold = cfg.goldenMin + Math.floor(Math.random() * (cfg.goldenMax - cfg.goldenMin + 1));
+  applesEaten = 0;
+
   scoreEl.textContent = score;
+  goldenCountEl.textContent = goldenCount;
+  goldenCountBox.style.display = 'none';
   gameOverOverlay.classList.add('hidden');
+
   spawnFood();
 }
 
@@ -265,8 +563,10 @@ function tick() {
   }
 
   // Self collision
-  const willEat = food && cellEq(newHead, food);
-  const checkBody = willEat ? snake : snake.slice(0, -1);
+  const willEatFood        = cellEq(newHead, food);
+  const willEatGolden      = cellEq(newHead, goldenApple);
+  const willEat            = willEatFood || willEatGolden;
+  const checkBody          = willEat ? snake : snake.slice(0, -1);
   if (checkBody.some(s => cellEq(s, newHead))) {
     return gameOver();
   }
@@ -274,59 +574,159 @@ function tick() {
   // Move: add head
   snake.unshift(newHead);
 
-  if (willEat) {
+  if (willEatGolden) {
+    // Golden apple!
+    score += GOLDEN_SCORE;
+    goldenCount++;
+    scoreEl.textContent = score;
+    goldenCountEl.textContent = goldenCount;
+    goldenCountBox.style.display = '';
+
+    // Pop effect
+    const gfx = goldenApple.x * CELL_SIZE + CELL_SIZE / 2;
+    const gfy = goldenApple.y * CELL_SIZE + CELL_SIZE / 2;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = CANVAS_W / rect.width;
+    const scaleY = CANVAS_H / rect.height;
+    showScorePop(
+      rect.left + gfx / scaleX - canvasContainer.getBoundingClientRect().left,
+      rect.top  + gfy / scaleY - canvasContainer.getBoundingClientRect().top,
+      `+${GOLDEN_SCORE}`, '#f1c40f'
+    );
+
+    clearGoldenApple();
+    goldenApple = null;
+    spawnFood(); // spawn new normal food alongside
+    // Don't count golden apples toward the threshold — reset tracking
+    applesEaten = 0;
+    const cfg = DIFFICULTIES[difficulty];
+    goldenThreshold = cfg.goldenMin + Math.floor(Math.random() * (cfg.goldenMax - cfg.goldenMin + 1));
+
+  } else if (willEatFood) {
     score++;
     scoreEl.textContent = score;
+    applesEaten++;
+
+    // Check if should spawn golden apple
+    if (applesEaten >= goldenThreshold && !goldenApple) {
+      spawnGoldenApple();
+      applesEaten = 0;
+      const cfg = DIFFICULTIES[difficulty];
+      goldenThreshold = cfg.goldenMin + Math.floor(Math.random() * (cfg.goldenMax - cfg.goldenMin + 1));
+    }
+
     spawnFood();
   } else {
     snake.pop();
   }
 
-  // Always schedule next tick
   scheduleTick();
 }
 
 function gameOver() {
   running = false;
   clearTimeout(gameLoop);
+  clearGoldenApple();
 
   if (score > highScore) {
     highScore = score;
     highScoreEl.textContent = highScore;
-    try { localStorage.setItem('snakeHighScore', highScore); } catch (_) {}
+    saveHighScore();
   }
 
   finalScoreEl.textContent = score;
+  finalGoldenEl.textContent = goldenCount > 0 ? `金苹果 ×${goldenCount}（+${goldenCount * GOLDEN_SCORE} 分）` : '';
   gameOverOverlay.classList.remove('hidden');
 }
 
 function scheduleTick() {
   clearTimeout(gameLoop);
-  const speed = Math.max(MIN_SPEED, BASE_SPEED - score * SPEED_STEP);
+  const speed = Math.max(speedMin, speedBase - score * speedStep);
   gameLoop = setTimeout(tick, speed);
 }
 
 // ── Input ──────────────────────────────────────────────────
+function setDirection(dx, dy) {
+  if (!running) return;
+  nextDir = { x: dx, y: dy };
+}
+
+function togglePause() {
+  if (!running) return;
+  paused = !paused;
+  if (!paused) scheduleTick();
+}
+
+// Keyboard
 document.addEventListener('keydown', e => {
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) {
     e.preventDefault();
   }
 
-  if (!running) return;
+  if (!running && e.key !== ' ') return;
 
   switch (e.key) {
-    case 'ArrowUp':    case 'w': case 'W': nextDir = { x: 0, y: -1 }; break;
-    case 'ArrowDown':  case 's': case 'S': nextDir = { x: 0, y:  1 }; break;
-    case 'ArrowLeft':  case 'a': case 'A': nextDir = { x: -1, y: 0 }; break;
-    case 'ArrowRight': case 'd': case 'D': nextDir = { x:  1, y: 0 }; break;
-    case ' ':
-      if (running) {
-        paused = !paused;
-        if (!paused) scheduleTick();
-      }
-      break;
+    case 'ArrowUp':    case 'w': case 'W': setDirection(0, -1); break;
+    case 'ArrowDown':  case 's': case 'S': setDirection(0,  1); break;
+    case 'ArrowLeft':  case 'a': case 'A': setDirection(-1, 0); break;
+    case 'ArrowRight': case 'd': case 'D': setDirection(1,  0); break;
+    case ' ': togglePause(); break;
   }
 });
+
+// D-pad buttons
+dpad.querySelectorAll('button[data-dir]').forEach(btn => {
+  btn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const d = btn.dataset.dir;
+    if (d === 'up')    setDirection(0, -1);
+    if (d === 'down')  setDirection(0,  1);
+    if (d === 'left')  setDirection(-1, 0);
+    if (d === 'right') setDirection(1,  0);
+  });
+});
+
+dpadPause.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  togglePause();
+});
+
+// Swipe detection on canvas
+let touchStartX = 0, touchStartY = 0;
+const SWIPE_THRESHOLD = 30;
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  touchStartX = t.clientX;
+  touchStartY = t.clientY;
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+
+  if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) {
+    // Too short — treat as tap to pause
+    togglePause();
+    return;
+  }
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    setDirection(dx > 0 ? 1 : -1, 0);
+  } else {
+    setDirection(0, dy > 0 ? 1 : -1);
+  }
+}, { passive: false });
+
+// Prevent double-tap zoom on everything
+document.addEventListener('touchstart', e => {
+  if (e.target.closest('.dpad, canvas, .btn, .overlay-box')) {
+    e.preventDefault();
+  }
+}, { passive: false });
 
 // ── Render ─────────────────────────────────────────────────
 function draw() {
@@ -341,28 +741,20 @@ function draw() {
     ctx.beginPath(); ctx.moveTo(0, pos); ctx.lineTo(CANVAS_W, pos); ctx.stroke();
   }
 
-  // Food
+  // Normal food
   if (food) {
-    const fx = food.x * CELL_SIZE + CELL_SIZE / 2;
-    const fy = food.y * CELL_SIZE + CELL_SIZE / 2;
-    const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 200);
+    drawFood(food.x, food.y, '#e94560', '#e94560', 8, false);
+  }
 
-    // Glow
-    const glow = ctx.createRadialGradient(fx, fy, 2, fx, fy, CELL_SIZE * 0.6);
-    glow.addColorStop(0, `rgba(233,69,96,${0.5 + pulse * 0.3})`);
-    glow.addColorStop(1, 'rgba(233,69,96,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(food.x * CELL_SIZE - CELL_SIZE / 3, food.y * CELL_SIZE - CELL_SIZE / 3,
-                 CELL_SIZE * 1.6, CELL_SIZE * 1.6);
-
-    // Food circle
-    ctx.fillStyle = '#e94560';
-    ctx.shadowColor = '#e94560';
-    ctx.shadowBlur = 8 + pulse * 6;
-    ctx.beginPath();
-    ctx.arc(fx, fy, CELL_SIZE / 2 - GAP - 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
+  // Golden apple
+  if (goldenApple) {
+    const flashing = isGoldenFlashing();
+    const elapsed = Date.now() - goldenApple.spawnTime;
+    // In flash phase: blink every 200ms
+    const visible = !flashing || Math.floor(elapsed / 200) % 2 === 0;
+    if (visible) {
+      drawFood(goldenApple.x, goldenApple.y, '#f1c40f', '#f39c12', 12, true);
+    }
   }
 
   // Snake
@@ -372,13 +764,11 @@ function draw() {
     const s = CELL_SIZE - GAP * 2;
     const t = i / Math.max(snake.length - 1, 1);
 
-    // Body color gradient
     const r = Math.round(15 + t * 10);
     const g = Math.round(220 - t * 120);
     const b = Math.round(80 + t * 20);
     ctx.fillStyle = `rgb(${r},${g},${b})`;
 
-    // Rounded rect
     const radius = i === 0 ? 8 : 5;
     ctx.beginPath();
     ctx.moveTo(x + radius, y);
@@ -398,14 +788,12 @@ function draw() {
       const cx = seg.x * CELL_SIZE + CELL_SIZE / 2;
       const cy = seg.y * CELL_SIZE + CELL_SIZE / 2;
 
-      // Two eye positions based on direction
       let eyes;
       if (dir.x === 1)       eyes = [{ x: cx + 5, y: cy - 5 }, { x: cx + 5, y: cy + 5 }];
       else if (dir.x === -1) eyes = [{ x: cx - 5, y: cy - 5 }, { x: cx - 5, y: cy + 5 }];
       else if (dir.y === -1) eyes = [{ x: cx - 5, y: cy - 5 }, { x: cx + 5, y: cy - 5 }];
       else                   eyes = [{ x: cx - 5, y: cy + 5 }, { x: cx + 5, y: cy + 5 }];
 
-      // Whites
       ctx.fillStyle = '#fff';
       eyes.forEach(({ x, y }) => {
         ctx.beginPath();
@@ -413,7 +801,6 @@ function draw() {
         ctx.fill();
       });
 
-      // Pupils
       ctx.fillStyle = '#111';
       eyes.forEach(({ x, y }) => {
         ctx.beginPath();
@@ -437,21 +824,93 @@ function draw() {
   requestAnimationFrame(draw);
 }
 
+function drawFood(gx, gy, color, glowColor, glowSize, isGolden) {
+  const fx = gx * CELL_SIZE + CELL_SIZE / 2;
+  const fy = gy * CELL_SIZE + CELL_SIZE / 2;
+  const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 200);
+
+  // Glow
+  const glow = ctx.createRadialGradient(fx, fy, 2, fx, fy, CELL_SIZE * 0.6);
+  const alpha = 0.4 + pulse * 0.3;
+  let glowRgba;
+  if (isGolden) {
+    glowRgba = `rgba(241,196,15,${alpha})`;
+  } else {
+    glowRgba = `rgba(233,69,96,${alpha})`;
+  }
+  glow.addColorStop(0, glowRgba);
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(gx * CELL_SIZE - CELL_SIZE / 3, gy * CELL_SIZE - CELL_SIZE / 3,
+               CELL_SIZE * 1.6, CELL_SIZE * 1.6);
+
+  // Main circle
+  ctx.fillStyle = color;
+  ctx.shadowColor = glowColor;
+  ctx.shadowBlur = glowSize + pulse * 6;
+  ctx.beginPath();
+
+  if (isGolden) {
+    // Star-like shape for golden apple
+    const r = CELL_SIZE / 2 - GAP - 2;
+    const spikes = 6;
+    const outerR = r;
+    const innerR = r * 0.55;
+    ctx.moveTo(fx + outerR * Math.cos(-Math.PI / 2), fy + outerR * Math.sin(-Math.PI / 2));
+    for (let i = 0; i < spikes; i++) {
+      const a1 = -Math.PI / 2 + (i * 2 * Math.PI) / spikes;
+      const a2 = a1 + Math.PI / spikes;
+      ctx.lineTo(fx + outerR * Math.cos(a1), fy + outerR * Math.sin(a1));
+      ctx.lineTo(fx + innerR * Math.cos(a2), fy + innerR * Math.sin(a2));
+    }
+    ctx.closePath();
+  } else {
+    ctx.arc(fx, fy, CELL_SIZE / 2 - GAP - 2, 0, Math.PI * 2);
+  }
+
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
 // ── Start / Restart ────────────────────────────────────────
-function startGame() {
+function startGame(diffKey) {
+  if (diffKey) applyDifficulty(diffKey);
   clearTimeout(gameLoop);
+  clearGoldenApple();
   init();
   running = true;
   scheduleTick();
 }
 
-restartBtn.addEventListener('click', startGame);
-playAgainBtn.addEventListener('click', startGame);
+// Difficulty selection
+diffOverlay.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const diffKey = btn.dataset.diff;
+    if (!diffKey) return;
+    diffOverlay.classList.add('hidden');
+    startGame(diffKey);
+  });
+});
+
+restartBtn.addEventListener('click', () => {
+  // Show difficulty selector on restart
+  diffOverlay.classList.remove('hidden');
+  gameOverOverlay.classList.add('hidden');
+  running = false;
+  clearTimeout(gameLoop);
+  clearGoldenApple();
+});
+
+playAgainBtn.addEventListener('click', () => {
+  diffOverlay.classList.remove('hidden');
+  gameOverOverlay.classList.add('hidden');
+});
 
 // ── Bootstrap ──────────────────────────────────────────────
-init();
-running = true;
-scheduleTick();
+applyDifficulty('normal');
+loadHighScore();
+// Show difficulty screen on load
+diffOverlay.classList.remove('hidden');
 requestAnimationFrame(draw);
 </script>
 </body>
